@@ -3,7 +3,7 @@
 import { RiskLevel } from "../types";
 
 // Point this to your computer's IP if running on Android!
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://localhost:5001/api';
 
 export const analyzeSMSTraffic = async (
   smsText: string,

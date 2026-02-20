@@ -9,8 +9,7 @@ Ensure the new device has the following installed:
 - **Node.js** (v18 or higher) & **npm**
 - **Java JDK** (v17 recommended for Android builds)
 - **Android Studio** (or Android SDK Command Line Tools)
-- **Docker** (optional, for running MySQL/Ollama easily)
-- **Ollama** (if running locally)
+- **Docker** (optional, for running MySQL easily)
 
 ---
 
@@ -96,7 +95,6 @@ DB_USER=simtool
 DB_PASSWORD=simtool
 DB_NAME=simfraud_db
 PORT=5000
-OLLAMA_URL=http://localhost:11434/api/generate
 ```
 
 ---

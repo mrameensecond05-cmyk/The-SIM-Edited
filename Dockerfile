@@ -1,5 +1,5 @@
-# 1. Switch to 'buster-slim' for better compatibility with older host OS (Ubuntu 18.04)
-FROM node:18-buster-slim as build
+# 1. Switch to 'bullseye-slim' for better compatibility and valid repositories
+FROM node:18-bullseye-slim as build
 
 WORKDIR /app
 

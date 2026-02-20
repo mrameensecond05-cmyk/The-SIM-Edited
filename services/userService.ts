@@ -1,8 +1,7 @@
 import { SMSAlert } from '../types';
 import { Capacitor } from '@capacitor/core';
 
-// Set this to your server's IP/domain for Android builds
-export const SERVER_IP = 'http://172.17.199.132:5000';
+export const SERVER_IP = 'http://172.17.199.132:5001';
 
 export const API_URL = Capacitor.getPlatform() === 'web' ? '/api' : `${SERVER_IP}/api`;
 
