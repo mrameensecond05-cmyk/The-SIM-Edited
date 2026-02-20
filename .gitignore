@@ -27,3 +27,12 @@ dist-ssr
 server/.env
 server/node_modules
 .env
+
+# Android - auto-generated / SDK / build artifacts
+android/sdk
+android/.gradle
+android/build
+android/app/build
+android/app/.cxx
+android/local.properties
+android/capacitor-cordova-android-plugins
