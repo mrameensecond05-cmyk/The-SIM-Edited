@@ -18,7 +18,7 @@ services:
       - DB_USER=root
       - DB_PASSWORD=rootpassword
       - DB_NAME=simfraud_db
-      - FAST2SMS_API_KEY=${FAST2SMS_API_KEY}
+      - FAST2SMS_API_KEY=lW4T2pKXLwinFNhsBq6bvIR8dr9DfjZex51aUoV7GtJSyCAQEcm68h0KzTnDyjfPs5A2vJbRa4g9kldq
     depends_on:
       - db
     volumes:
