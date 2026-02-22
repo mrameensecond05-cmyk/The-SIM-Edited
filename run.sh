@@ -10,4 +10,4 @@ fi
 
 # 2. Start Docker Compose
 echo "🚀 Starting Docker environment..."
-docker-compose up -d --build
+sudo docker-compose up -d --build
