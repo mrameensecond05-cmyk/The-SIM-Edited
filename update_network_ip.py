@@ -34,7 +34,7 @@ def update_file(filepath, new_ip):
 
         # 1. Update userService.ts (SERVER_IP)
         if filepath.endswith("userService.ts"):
-            # Target: export const SERVER_IP = 'http://172.20.10.3:5001';
+            # Target: export const SERVER_IP = 'http://172.20.10.3:5000';
             pattern = r"(export\s+const\s+SERVER_IP\s*=\s*['\"]http://)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
             updated_content, n = re.subn(pattern, r"\g<1>" + new_ip, content)
             changes += n
@@ -103,14 +103,19 @@ def main():
     ]
 
     base_dir = os.getcwd()
-    any_updates = False
+    force_build = "--force" in sys.argv
+    any_updates = force_build
+    
     for rel_path in files_to_check:
         full_path = os.path.join(base_dir, rel_path)
         if update_file(full_path, new_ip):
             any_updates = True
 
     if any_updates:
-        print("\n⚠️  Changes detected. Starting Android build process...")
+        if force_build:
+            print("\n💪 Force build requested. Starting Android build process...")
+        else:
+            print("\n⚠️  Changes detected. Starting Android build process...")
         
         # 1. Build Frontend
         if not run_command("npm run build", cwd=base_dir):

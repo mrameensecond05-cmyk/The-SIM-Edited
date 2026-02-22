@@ -1,7 +1,7 @@
 import { SMSAlert } from '../types';
 import { Capacitor } from '@capacitor/core';
 
-export const SERVER_IP = 'http://192.168.1.39:5001';
+export const SERVER_IP = 'http://192.168.1.67:5000';
 
 export const API_URL = Capacitor.getPlatform() === 'web' ? '/api' : `${SERVER_IP}/api`;
 

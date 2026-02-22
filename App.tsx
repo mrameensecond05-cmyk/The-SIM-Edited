@@ -37,15 +37,44 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showNewAlertBanner, setShowNewAlertBanner] = useState(false);
+  const [latestAlertId, setLatestAlertId] = useState<string | null>(null);
 
-  // Fetch alerts when logged in
+  // Fetch alerts when logged in + Polling every 5 seconds
   useEffect(() => {
+    let interval: any;
+
+    const fetchAlerts = async () => {
+      try {
+        const data = await UserService.getAlerts();
+
+        // Check for new alerts if we already have some or if it's the first fetch
+        if (data.length > 0) {
+          const newest = data[0].id;
+          if (latestAlertId && newest !== latestAlertId) {
+            // New alert detected!
+            setShowNewAlertBanner(true);
+            // Auto-hide after 10 seconds
+            setTimeout(() => setShowNewAlertBanner(false), 10000);
+          }
+          setLatestAlertId(newest);
+        }
+
+        setAlerts(data);
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    };
+
     if (auth.isAuthenticated) {
-      UserService.getAlerts()
-        .then(data => setAlerts(data))
-        .catch(() => { });
+      fetchAlerts();
+      interval = setInterval(fetchAlerts, 5000);
     }
-  }, [auth.isAuthenticated]);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [auth.isAuthenticated, latestAlertId]);
 
   const switchView = (view: 'LOGIN' | 'REGISTER') => {
     setAuth({ ...auth, view });
@@ -219,6 +248,28 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f9fc]">
       <main className="flex-1 overflow-y-auto pb-20">
+        {/* Real-time Alert Notification */}
+        {showNewAlertBanner && (
+          <div className="fixed top-4 left-4 right-4 z-50 animate-bounce-in">
+            <div className="bg-red-600 text-white p-4 rounded-2xl shadow-2xl border-2 border-white/20 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-full">
+                  <svg className="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-bold text-sm">CRITICAL ALERT DETECTED</div>
+                  <div className="text-[10px] opacity-90">Unusual SIM activity scanned. Tap 'Alerts' for details.</div>
+                </div>
+              </div>
+              <button onClick={() => setShowNewAlertBanner(false)} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {renderContent()}
       </main>
 

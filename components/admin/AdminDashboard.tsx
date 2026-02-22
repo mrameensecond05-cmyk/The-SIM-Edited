@@ -120,8 +120,8 @@ const SimulateAlertPanel: React.FC = () => {
     const startSimulationFlow = () => {
         setResult(null);
         setLoading(true);
-        // Random delay between 20 and 59 seconds
-        const randomDelaySeconds = Math.floor(Math.random() * (59 - 20 + 1)) + 20;
+        // Random delay between 20 and 30 seconds
+        const randomDelaySeconds = Math.floor(Math.random() * (30 - 20 + 1)) + 20;
         setCountdown(randomDelaySeconds);
     };
 
@@ -166,8 +166,8 @@ const SimulateAlertPanel: React.FC = () => {
                             onClick={startSimulationFlow}
                             disabled={loading || (quota === 0)}
                             className={`px-8 py-4 rounded-2xl font-bold text-lg transition-all w-full max-w-xs ${loading || quota === 0
-                                    ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                                    : 'bg-red-600 hover:bg-red-500 active:scale-95 shadow-xl shadow-red-600/30'
+                                ? 'bg-gray-600 cursor-not-allowed opacity-50'
+                                : 'bg-red-600 hover:bg-red-500 active:scale-95 shadow-xl shadow-red-600/30'
                                 }`}
                         >
                             {loading ? 'Processing...' : quota === 0 ? '⛔ Quota limit' : '🚨 TRIGGER SIMULATION'}
