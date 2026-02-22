@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   frontend:
@@ -28,7 +28,7 @@ services:
   db:
     image: mysql:5.7
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword" ]
       interval: 10s
       timeout: 5s
       retries: 5
