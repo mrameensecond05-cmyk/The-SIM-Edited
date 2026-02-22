@@ -36,7 +36,7 @@ def update_file(filepath, new_ip):
         if filepath.endswith("userService.ts"):
             # Target: export const SERVER_IP = 'http://172.20.10.3:5001';
             pattern = r"(export\s+const\s+SERVER_IP\s*=\s*['\"]http://)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
-            updated_content, n = re.subn(pattern, r"\1" + new_ip, content)
+            updated_content, n = re.subn(pattern, r"\g<1>" + new_ip, content)
             changes += n
 
         # 2. Update network_security_config.xml
@@ -57,7 +57,7 @@ def update_file(filepath, new_ip):
             # Target: target: 'http://localhost:5000', or any IP
             # Note: Your vite.config currently uses localhost, this will change it to the new IP if desired
             pattern = r"(target:\s*['\"]http://)([\w\d\.]+)"
-            updated_content, n = re.subn(pattern, r"\1" + new_ip, content)
+            updated_content, n = re.subn(pattern, r"\g<1>" + new_ip, content)
             changes += n
 
         if updated_content != content:

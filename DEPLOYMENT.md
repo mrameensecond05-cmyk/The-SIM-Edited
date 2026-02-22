@@ -18,7 +18,7 @@ Ensure the new device has the following installed:
 Open a terminal on the new device and run:
 
 ```bash
-git clone <YOUR_GIT_REPO_URL>
+git clone https://github.com/mrameensecond05-cmyk/The-SIM-Edited.git
 cd SIM-fraud
 ```
 
