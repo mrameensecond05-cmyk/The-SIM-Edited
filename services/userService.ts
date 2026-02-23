@@ -61,5 +61,18 @@ export const UserService = {
         } catch {
             return { success: false };
         }
+    },
+
+    setPrimaryPhone: async (data: { userId: string; phone: string }) => {
+        try {
+            const res = await fetch(`${API_URL}/user/primary-phone`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await res.json();
+        } catch {
+            return { success: false };
+        }
     }
 };

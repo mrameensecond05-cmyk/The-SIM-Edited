@@ -2,10 +2,19 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const http = require('http');
 require('dotenv').config();
 const { sendSimulatedSMS, getRemainingQuota } = require('./smsService');
 
 const app = express();
+const server = http.createServer(app);
+
+// --- Socket.io Setup ---
+const { Server } = require('socket.io');
+const io = new Server(server, {
+    cors: { origin: '*' }
+});
+
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
@@ -271,6 +280,24 @@ app.post('/api/user/device', async (req, res) => {
     }
 });
 
+// Update Primary Phone Number
+app.post('/api/user/primary-phone', async (req, res) => {
+    const { userId, phone } = req.body;
+    if (!userId || !phone)
+        return res.status(400).json({ error: "User ID and Phone Number required." });
+
+    try {
+        await pool.query(
+            "UPDATE SIMFraudUserProfile SET phone = ? WHERE id = ?",
+            [phone, userId]
+        );
+        res.json({ success: true, message: "Primary phone updated" });
+    } catch (err) {
+        console.error("Update Phone Error:", err);
+        res.status(500).json({ error: "Failed to update primary phone." });
+    }
+});
+
 // Dashboard Stats
 app.get('/api/stats', async (req, res) => {
     try {
@@ -497,6 +524,14 @@ app.post('/api/simulate/alert', async (req, res) => {
             await sendSimulatedSMS(targetPhone, alertMsg);
         }
 
+        // 5b. Also broadcast via Socket.io to all connected clients
+        io.emit('receive_simulation_command', {
+            sender: targetPhone || 'SIMTinel Security',
+            message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
+            severity: analysis.risk_level,
+            timestamp: new Date().toISOString()
+        });
+
         res.json({
             success: true,
             message: "Simulation Complete",
@@ -515,5 +550,105 @@ app.get('/api/sms/quota', (req, res) => {
     res.json({ remaining: getRemainingQuota(), limit: 3 });
 });
 
+// --- Socket.io Connection Handler ---
+io.on('connection', (socket) => {
+    console.log(`[Socket.io] Device connected: ${socket.id}`);
+
+    socket.on('admin_trigger_simulation', async (data) => {
+        console.log('[Socket.io] Admin triggered simulation:', data);
+        try {
+            // Resolve target user from the database
+            let targetUserId = null;
+            let targetPhone = null;
+            let targetName = 'Unknown';
+
+            const [latest] = await pool.query(
+                "SELECT p.id, p.phone, p.name FROM SIMFraudUserProfile p WHERE p.phone IS NOT NULL ORDER BY p.id DESC LIMIT 1"
+            );
+            if (latest.length > 0) {
+                targetUserId = latest[0].id;
+                targetPhone = latest[0].phone;
+                targetName = latest[0].name;
+            } else {
+                socket.emit('simulation_result', { success: false, error: 'No registered users with phone numbers found' });
+                return;
+            }
+
+            const conn = await pool.getConnection();
+            await conn.beginTransaction();
+
+            // 1. Simulate SIM Swap
+            const [lastEvent] = await conn.query(
+                "SELECT new_imei FROM SIMFraudSIMEvent WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+                [targetUserId]
+            );
+            const oldImei = lastEvent[0]?.new_imei || '111111111111111';
+            await conn.query(
+                "INSERT INTO SIMFraudSIMEvent (user_id, event_type, old_imei, new_imei, location, timestamp) VALUES (?, 'imei_change', ?, '999999999999999', 'Unknown (Simulated)', NOW())",
+                [targetUserId, oldImei]
+            );
+
+            // 2. Simulate Transaction
+            const [txRes] = await conn.query(
+                "INSERT INTO SIMFraudTransaction (user_id, amount, channel, status, timestamp) VALUES (?, 50000.00, 'NETBANKING', 'initiated', NOW())",
+                [targetUserId]
+            );
+            const txId = txRes.insertId;
+            await conn.commit();
+            conn.release();
+
+            // 3. Rule-Based Analysis
+            const analysis = await analyzeFraud(txId);
+
+            // 4. Save Prediction + Alert
+            const [predRes] = await pool.query(
+                "INSERT INTO SIMFraudPredictionOutput (transaction_id, fraud_score, decision, features_json, explanation_json) VALUES (?, ?, ?, '{}', ?)",
+                [txId, analysis.risk_score, analysis.decision, JSON.stringify(analysis.reasons)]
+            );
+            await pool.query(
+                "INSERT INTO SIMFraudAlert (prediction_id, severity, status) VALUES (?, ?, 'open')",
+                [predRes.insertId, analysis.risk_level]
+            );
+
+            // 5. Send SMS via Fast2SMS
+            let smsStatus = null;
+            if (targetPhone) {
+                const alertMessages = [
+                    `ALERT: SIM swap detected on ${targetPhone}. Rs.50,000 transaction blocked. Call 1800-SIMTINEL if not you.`,
+                    `SIMTinel: Unusual login from new device. Your account is temporarily locked for safety.`,
+                    `WARNING: Your SIM card was changed. A Rs.50,000 transfer was attempted. Reply STOP to block.`,
+                    `FRAUD ALERT: Suspicious activity on your account. New device detected. Contact support immediately.`,
+                ];
+                const alertMsg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
+                smsStatus = await sendSimulatedSMS(targetPhone, alertMsg);
+            }
+
+            // 6. Broadcast to ALL connected clients (mobile app gets this)
+            io.emit('receive_simulation_command', {
+                sender: targetPhone || 'SIMTinel Security',
+                message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
+                severity: analysis.risk_level,
+                timestamp: new Date().toISOString()
+            });
+
+            // 7. Send result back to admin
+            socket.emit('simulation_result', {
+                success: true,
+                message: 'Simulation Complete',
+                steps: ['SIM Swap Event Created', 'Suspicious Transaction Created', 'Rule-Based Analysis Performed', smsStatus ? 'Alert SMS Sent' : 'SMS Skipped (no phone)'],
+                analysis,
+                smsStatus
+            });
+        } catch (err) {
+            console.error('[Socket.io] Simulation Error:', err);
+            socket.emit('simulation_result', { success: false, error: err.message });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`[Socket.io] Device disconnected: ${socket.id}`);
+    });
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT} (Socket.io enabled)`));

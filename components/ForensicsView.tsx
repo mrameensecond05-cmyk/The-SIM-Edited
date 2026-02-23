@@ -3,18 +3,14 @@ import React from 'react';
 
 export const ForensicsView: React.FC = () => {
   const hardwareInfo = {
-    imsi: "310-260-000000001",
-    imei: "350000000000001",
-    lastSwap: "2023-11-20 14:30:22",
-    carrier: "T-Mobile USA",
-    status: "Verified Pairing"
+    imsi: "NOT_SYNCED",
+    imei: "NOT_DETECTED",
+    lastSwap: "Never",
+    carrier: "Unknown",
+    status: "Awaiting Pairing"
   };
 
-  const swapHistory = [
-    { date: "2023-11-20 14:30:22", carrier: "T-Mobile USA", event: "Hardware Re-pairing", type: "AUTHORIZED" },
-    { date: "2023-05-12 09:15:45", carrier: "Verizon Wireless", event: "Port-in Service", type: "AUTHORIZED" },
-    { date: "2022-10-04 18:22:10", carrier: "AT&T Mobility", event: "Initial Activation", type: "SYSTEM" }
-  ];
+  const swapHistory: any[] = [];
 
   return (
     <div className="p-6 space-y-6 pb-24">
@@ -26,7 +22,7 @@ export const ForensicsView: React.FC = () => {
       {/* Primary Forensic Report */}
       <div className="bg-[#1c1b1f] text-[#e6e1e5] rounded-[28px] p-6 font-mono text-sm overflow-hidden relative shadow-lg">
         <div className="absolute top-4 right-4 animate-pulse">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
         </div>
         <div className="space-y-4">
           <div className="border-b border-gray-700 pb-2">
@@ -60,8 +56,8 @@ export const ForensicsView: React.FC = () => {
         <h3 className="text-lg font-medium px-2">Swap History</h3>
         <div className="bg-white rounded-[28px] border border-gray-100 shadow-sm overflow-hidden">
           {swapHistory.map((swap, idx) => (
-            <div 
-              key={idx} 
+            <div
+              key={idx}
               className={`p-5 flex items-start gap-4 ${idx !== swapHistory.length - 1 ? 'border-b border-gray-50' : ''} transition-colors active:bg-gray-50`}
             >
               <div className="flex flex-col items-center mt-1">

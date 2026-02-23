@@ -11,19 +11,8 @@ import { UserManagementView } from './components/admin/UserManagementView';
 import { IncidentLogView } from './components/admin/IncidentLogView';
 import { GlobalAlertsView } from './components/admin/GlobalAlertsView';
 import { UserService } from './services/userService';
+import { socket } from './services/socketService';
 
-const INITIAL_SIMS: MonitoredNumber[] = [
-  {
-    id: 'primary',
-    phoneNumber: '+91 98765 43210',
-    isVerified: true,
-    isAadhaarVerified: true,
-    aadhaarLastFour: '4582',
-    carrier: 'Airtel Digital',
-    status: 'active',
-    simType: 'PRIMARY'
-  }
-];
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
@@ -39,6 +28,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showNewAlertBanner, setShowNewAlertBanner] = useState(false);
   const [latestAlertId, setLatestAlertId] = useState<string | null>(null);
+  const [liveAlertData, setLiveAlertData] = useState<{ sender: string; message: string; severity: string } | null>(null);
 
   // Fetch alerts when logged in + Polling every 5 seconds
   useEffect(() => {
@@ -76,6 +66,22 @@ const App: React.FC = () => {
     };
   }, [auth.isAuthenticated, latestAlertId]);
 
+  // --- Socket.io: Listen for real-time simulation alerts ---
+  useEffect(() => {
+    const handleSimulationAlert = (data: { sender: string; message: string; severity: string }) => {
+      console.log('[Socket.io] Received simulation alert:', data);
+      setLiveAlertData(data);
+      setShowNewAlertBanner(true);
+      // Auto-hide after 15 seconds
+      setTimeout(() => setShowNewAlertBanner(false), 15000);
+      // Also refresh alerts from API
+      UserService.getAlerts().then(setAlerts).catch(console.error);
+    };
+
+    socket.on('receive_simulation_command', handleSimulationAlert);
+    return () => { socket.off('receive_simulation_command', handleSimulationAlert); };
+  }, []);
+
   const switchView = (view: 'LOGIN' | 'REGISTER') => {
     setAuth({ ...auth, view });
     setErrorMsg(null);
@@ -96,7 +102,7 @@ const App: React.FC = () => {
           setAuth({
             isAuthenticated: true,
             view: 'LOGIN',
-            user: { ...data.user, role: data.user.role || 'USER', monitoredNumbers: INITIAL_SIMS }
+            user: { ...data.user, role: data.user.role || 'USER', monitoredNumbers: [] }
           });
         }
       } else {
@@ -259,11 +265,15 @@ const App: React.FC = () => {
                   </svg>
                 </div>
                 <div>
-                  <div className="font-bold text-sm">CRITICAL ALERT DETECTED</div>
-                  <div className="text-[10px] opacity-90">Unusual SIM activity scanned. Tap 'Alerts' for details.</div>
+                  <div className="font-bold text-sm">
+                    {liveAlertData?.severity === 'CRITICAL' ? '🚨 CRITICAL FRAUD ALERT' : 'SECURITY ALERT'}
+                  </div>
+                  <div className="text-[10px] opacity-90 mt-0.5 max-w-[260px]">
+                    {liveAlertData?.message || 'Unusual SIM activity detected. Tap Alerts for details.'}
+                  </div>
                 </div>
               </div>
-              <button onClick={() => setShowNewAlertBanner(false)} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg">
+              <button onClick={() => setShowNewAlertBanner(false)} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg ml-2 shrink-0">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
               </button>
             </div>

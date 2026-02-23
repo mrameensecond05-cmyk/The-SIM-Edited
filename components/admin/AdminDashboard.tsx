@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { AdminAppService } from '../../services/adminService';
 import { AdminUser, AdminIncident, RiskLevel } from '../../types';
+import { socket, emitSimulation } from '../../services/socketService';
 
 interface DashboardStats {
     totalUsers: number;
@@ -125,16 +126,15 @@ const SimulateAlertPanel: React.FC = () => {
         setCountdown(randomDelaySeconds);
     };
 
-    const triggerSimulation = async () => {
+    const triggerSimulation = () => {
         setCountdown(null);
-        try {
-            // Empty phone = auto-target latest/active user
-            const res = await AdminAppService.simulateAlert('');
+        // Listen for server result via Socket.io
+        socket.once('simulation_result', (res: any) => {
             setResult(res);
-        } catch (err) {
-            setResult({ success: false, error: String(err) });
-        }
-        setLoading(false);
+            setLoading(false);
+        });
+        // Emit via Socket.io instead of REST
+        emitSimulation();
     };
 
     return (
