@@ -12,6 +12,7 @@ import { IncidentLogView } from './components/admin/IncidentLogView';
 import { GlobalAlertsView } from './components/admin/GlobalAlertsView';
 import { UserService } from './services/userService';
 import { socket } from './services/socketService';
+import SIMSentinel from './src/plugins/SIMSentinel';
 
 
 const App: React.FC = () => {
@@ -80,6 +81,38 @@ const App: React.FC = () => {
 
     socket.on('receive_simulation_command', handleSimulationAlert);
     return () => { socket.off('receive_simulation_command', handleSimulationAlert); };
+  }, []);
+
+  // --- SIMSentinel: Native SMS Interception ---
+  useEffect(() => {
+    const setupSentinel = async () => {
+      try {
+        const { granted } = await SIMSentinel.requestPermissions();
+        if (granted) {
+          console.log('[SIMSentinel] Permissions granted');
+
+          // Listen for native SMS events
+          SIMSentinel.addListener('smsReceived', (data) => {
+            console.log('[SIMSentinel] SMS Received via Native:', data);
+            setLiveAlertData({
+              sender: data.sender,
+              message: data.message,
+              severity: data.message.toLowerCase().includes('alert') || data.message.toLowerCase().includes('fraud') ? 'CRITICAL' : 'HIGH'
+            });
+            setShowNewAlertBanner(true);
+            // Refresh feed
+            UserService.getAlerts().then(setAlerts).catch(console.error);
+          });
+
+          // Check for missed SMS
+          await SIMSentinel.checkForPendingSMS();
+        }
+      } catch (err) {
+        console.error('[SIMSentinel] Setup error:', err);
+      }
+    };
+
+    setupSentinel();
   }, []);
 
   const switchView = (view: 'LOGIN' | 'REGISTER') => {

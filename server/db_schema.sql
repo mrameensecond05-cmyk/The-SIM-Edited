@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS SIMFraudAlert (
     status VARCHAR(20) DEFAULT 'open', -- 'open', 'in_review', 'closed'
     assigned_to BIGINT, -- Login ID of analyst
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    closed_at TIMESTAMP,
+    closed_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (prediction_id) REFERENCES SIMFraudPredictionOutput(id)
 );
 

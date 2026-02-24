@@ -28,6 +28,18 @@ const pool = require('./db');
 const path = require('path');
 
 // --- Static Files ---
+app.get('/api/download/simtinel.apk', (req, res) => {
+    const filePath = path.join(__dirname, 'public', 'simtinel.apk');
+    res.download(filePath, 'simtinel.apk', (err) => {
+        if (err) {
+            console.error('Error downloading APK:', err);
+            if (!res.headersSent) {
+                res.status(404).json({ error: 'APK file not found' });
+            }
+        }
+    });
+});
+
 app.use('/api/download', express.static(path.join(__dirname, 'public')));
 app.use(express.static(path.join(__dirname, 'public/web')));
 
@@ -498,39 +510,55 @@ app.post('/api/simulate/alert', async (req, res) => {
         // 3. Rule-Based Analysis
         const analysis = await analyzeFraud(txId);
 
-        // 4. Save Prediction + Alert
-        const [predRes] = await pool.query(
-            "INSERT INTO SIMFraudPredictionOutput (transaction_id, fraud_score, decision, features_json, explanation_json) VALUES (?, ?, ?, '{}', ?)",
-            [txId, analysis.risk_score, analysis.decision, JSON.stringify(analysis.reasons)]
-        );
-        await pool.query(
-            "INSERT INTO SIMFraudAlert (prediction_id, severity, status) VALUES (?, ?, 'open')",
-            [predRes.insertId, analysis.risk_level]
-        );
-
-        // 5. Send Alert SMS
-        if (targetPhone) {
-            const alertMessages = [
-                `ALERT: SIM swap detected on ${targetPhone}. Rs.50,000 transaction blocked. Call 1800-SIMTINEL if not you.`,
-                `SIMTinel: Unusual login from new device. Your account is temporarily locked for safety.`,
-                `WARNING: Your SIM card was changed. A Rs.50,000 transfer was attempted. Reply STOP to block.`,
-                `FRAUD ALERT: Suspicious activity on your account. New device detected. Contact support immediately.`,
-                `SIMTinel Security: SIM swap attempt detected. Transaction of Rs.50,000 has been held for verification.`,
-                `URGENT: Your number ${targetPhone} was ported to a new SIM. All transactions are paused.`,
-                `SIMTinel: High-risk transaction blocked. New IMEI detected on your account. Verify identity to proceed.`,
-                `SECURITY: Your SIM was swapped. Unauthorized Rs.50,000 NETBANKING attempt blocked by SIMTinel.`
-            ];
-            const alertMsg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
-            await sendSimulatedSMS(targetPhone, alertMsg);
+        // 4. Save Prediction + Alert (Safe)
+        let predId = null;
+        try {
+            const [predRes] = await pool.query(
+                "INSERT INTO SIMFraudPredictionOutput (transaction_id, fraud_score, decision, features_json, explanation_json) VALUES (?, ?, ?, '{}', ?)",
+                [txId, analysis.risk_score, analysis.decision, JSON.stringify(analysis.reasons)]
+            );
+            predId = predRes.insertId;
+            await pool.query(
+                "INSERT INTO SIMFraudAlert (prediction_id, severity, status) VALUES (?, ?, 'open')",
+                [predId, analysis.risk_level]
+            );
+            console.log(`[SIMULATION] Alert saved to DB: ID ${predId}`);
+        } catch (dbErr) {
+            console.error("[SIMULATION] DB Logging Error (Non-blocking):", dbErr);
         }
 
-        // 5b. Also broadcast via Socket.io to all connected clients
-        io.emit('receive_simulation_command', {
-            sender: targetPhone || 'SIMTinel Security',
-            message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
-            severity: analysis.risk_level,
-            timestamp: new Date().toISOString()
-        });
+        // 5. Send Alert SMS (Safe)
+        if (targetPhone) {
+            try {
+                const alertMessages = [
+                    `ALERT: SIM swap detected on ${targetPhone}. Rs.50,000 transaction blocked. Call 1800-SIMTINEL if not you.`,
+                    `SIMTinel: Unusual login from new device. Your account is temporarily locked for safety.`,
+                    `WARNING: Your SIM card was changed. A Rs.50,000 transfer was attempted. Reply STOP to block.`,
+                    `FRAUD ALERT: Suspicious activity on your account. New device detected. Contact support immediately.`,
+                    `SIMTinel Security: SIM swap attempt detected. Transaction of Rs.50,000 has been held for verification.`,
+                    `URGENT: Your number ${targetPhone} was ported to a new SIM. All transactions are paused.`,
+                    `SIMTinel: High-risk transaction blocked. New IMEI detected on your account. Verify identity to proceed.`,
+                    `SECURITY: Your SIM was swapped. Unauthorized Rs.50,000 NETBANKING attempt blocked by SIMTinel.`
+                ];
+                const alertMsg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
+                await sendSimulatedSMS(targetPhone, alertMsg);
+            } catch (smsErr) {
+                console.error("[SIMULATION] SMS Sending Error (Non-blocking):", smsErr);
+            }
+        }
+
+        // 5b. Also broadcast via Socket.io to all connected clients (Safe)
+        try {
+            io.emit('receive_simulation_command', {
+                sender: targetPhone || 'SIMTinel Security',
+                message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
+                severity: analysis.risk_level,
+                timestamp: new Date().toISOString()
+            });
+            console.log("[SIMULATION] Socket.io broadcast sent.");
+        } catch (socketErr) {
+            console.error("[SIMULATION] Socket.io Error (Non-blocking):", socketErr);
+        }
 
         res.json({
             success: true,
@@ -600,36 +628,50 @@ io.on('connection', (socket) => {
             // 3. Rule-Based Analysis
             const analysis = await analyzeFraud(txId);
 
-            // 4. Save Prediction + Alert
-            const [predRes] = await pool.query(
-                "INSERT INTO SIMFraudPredictionOutput (transaction_id, fraud_score, decision, features_json, explanation_json) VALUES (?, ?, ?, '{}', ?)",
-                [txId, analysis.risk_score, analysis.decision, JSON.stringify(analysis.reasons)]
-            );
-            await pool.query(
-                "INSERT INTO SIMFraudAlert (prediction_id, severity, status) VALUES (?, ?, 'open')",
-                [predRes.insertId, analysis.risk_level]
-            );
-
-            // 5. Send SMS via Fast2SMS
-            let smsStatus = null;
-            if (targetPhone) {
-                const alertMessages = [
-                    `ALERT: SIM swap detected on ${targetPhone}. Rs.50,000 transaction blocked. Call 1800-SIMTINEL if not you.`,
-                    `SIMTinel: Unusual login from new device. Your account is temporarily locked for safety.`,
-                    `WARNING: Your SIM card was changed. A Rs.50,000 transfer was attempted. Reply STOP to block.`,
-                    `FRAUD ALERT: Suspicious activity on your account. New device detected. Contact support immediately.`,
-                ];
-                const alertMsg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
-                smsStatus = await sendSimulatedSMS(targetPhone, alertMsg);
+            // 4. Save Prediction + Alert (Safe)
+            let predId = null;
+            try {
+                const [predRes] = await pool.query(
+                    "INSERT INTO SIMFraudPredictionOutput (transaction_id, fraud_score, decision, features_json, explanation_json) VALUES (?, ?, ?, '{}', ?)",
+                    [txId, analysis.risk_score, analysis.decision, JSON.stringify(analysis.reasons)]
+                );
+                predId = predRes.insertId;
+                await pool.query(
+                    "INSERT INTO SIMFraudAlert (prediction_id, severity, status) VALUES (?, ?, 'open')",
+                    [predId, analysis.risk_level]
+                );
+            } catch (dbErr) {
+                console.error('[Socket.io] DB Logging Error (Non-blocking):', dbErr);
             }
 
-            // 6. Broadcast to ALL connected clients (mobile app gets this)
-            io.emit('receive_simulation_command', {
-                sender: targetPhone || 'SIMTinel Security',
-                message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
-                severity: analysis.risk_level,
-                timestamp: new Date().toISOString()
-            });
+            // 5. Send SMS via Fast2SMS (Safe)
+            let smsStatus = null;
+            if (targetPhone) {
+                try {
+                    const alertMessages = [
+                        `ALERT: SIM swap detected on ${targetPhone}. Rs.50,000 transaction blocked. Call 1800-SIMTINEL if not you.`,
+                        `SIMTinel: Unusual login from new device. Your account is temporarily locked for safety.`,
+                        `WARNING: Your SIM card was changed. A Rs.50,000 transfer was attempted. Reply STOP to block.`,
+                        `FRAUD ALERT: Suspicious activity on your account. New device detected. Contact support immediately.`,
+                    ];
+                    const alertMsg = alertMessages[Math.floor(Math.random() * alertMessages.length)];
+                    smsStatus = await sendSimulatedSMS(targetPhone, alertMsg);
+                } catch (smsErr) {
+                    console.error('[Socket.io] SMS Sending Error (Non-blocking):', smsErr);
+                }
+            }
+
+            // 6. Broadcast to ALL connected clients (mobile app gets this) (Safe)
+            try {
+                io.emit('receive_simulation_command', {
+                    sender: targetPhone || 'SIMTinel Security',
+                    message: `CRITICAL: Unauthorized SIM swap detected on ${targetPhone}. A ₹50,000 transaction was blocked. Verify your identity immediately.`,
+                    severity: analysis.risk_level,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (socketErr) {
+                console.error('[Socket.io] Socket.io Broadcast Error (Non-blocking):', socketErr);
+            }
 
             // 7. Send result back to admin
             socket.emit('simulation_result', {
