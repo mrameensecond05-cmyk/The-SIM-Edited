@@ -11,7 +11,7 @@ import { UserManagementView } from './components/admin/UserManagementView';
 import { IncidentLogView } from './components/admin/IncidentLogView';
 import { GlobalAlertsView } from './components/admin/GlobalAlertsView';
 import { UserService } from './services/userService';
-import { socket } from './services/socketService';
+import { socket, registerOnline } from './services/socketService';
 import SIMSentinel from './src/plugins/SIMSentinel';
 
 
@@ -82,6 +82,14 @@ const App: React.FC = () => {
     socket.on('receive_simulation_command', handleSimulationAlert);
     return () => { socket.off('receive_simulation_command', handleSimulationAlert); };
   }, []);
+
+  // --- Socket.io: Mark user as online ---
+  useEffect(() => {
+    if (auth.isAuthenticated && (auth.user as any)?.id) {
+      console.log('[Socket.io] Registering online status for user:', (auth.user as any).id);
+      registerOnline((auth.user as any).id.toString());
+    }
+  }, [auth.isAuthenticated, auth.user]);
 
   // --- SIMSentinel: Native SMS Interception ---
   useEffect(() => {

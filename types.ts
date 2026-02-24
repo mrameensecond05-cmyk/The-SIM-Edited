@@ -59,6 +59,7 @@ export interface AdminUser {
   name: string;
   email: string;
   status: 'ACTIVE' | 'SUSPENDED' | 'FLAGGED';
+  isOnline?: boolean;
   riskScore: number;
   lastActive: string;
   devices: number;

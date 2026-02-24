@@ -88,6 +88,8 @@ async function sendSimulatedSMS(to, body) {
             headers: { 'cache-control': 'no-cache' }
         });
 
+        console.log(`[SMS] Fast2SMS Response:`, JSON.stringify(response.data));
+
         if (response.data && response.data.return === true) {
             smsCount++;
             const remaining = MAX_SMS_PER_DAY - smsCount;

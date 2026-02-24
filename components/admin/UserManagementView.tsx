@@ -47,7 +47,14 @@ export const UserManagementView: React.FC = () => {
                                     </div>
                                 </td>
                                 <td className="p-6">
-                                    <StatusBadge status={user.status} />
+                                    <div className="flex items-center gap-2">
+                                        <StatusBadge status={user.status} />
+                                        {user.isOnline ? (
+                                            <span className="flex h-2 w-2 rounded-full bg-green-500 shadow-sm shadow-green-500/50" title="Online"></span>
+                                        ) : (
+                                            <span className="flex h-2 w-2 rounded-full bg-gray-300" title="Offline"></span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="p-6">
                                     <div className="flex items-center gap-2">

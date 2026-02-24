@@ -15,6 +15,9 @@ const io = new Server(server, {
     cors: { origin: '*' }
 });
 
+// Online User Tracking
+const onlineUsers = new Map(); // socket.id -> userId
+
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
@@ -340,11 +343,13 @@ app.get('/api/users', async (req, res) => {
             JOIN SIMFraudLogin l ON p.login_id = l.id
             JOIN SIMFraudRole r ON l.role_id = r.id
         `);
+        const activeUserIds = new Set(Array.from(onlineUsers.values()).map(String));
         res.json(rows.map(u => ({
             id: u.id.toString(),
             name: u.name,
             email: u.email,
             status: u.status,
+            isOnline: activeUserIds.has(u.id.toString()),
             riskScore: 0,
             lastActive: u.last_active,
             role: u.role_name
@@ -581,6 +586,18 @@ app.get('/api/sms/quota', (req, res) => {
 // --- Socket.io Connection Handler ---
 io.on('connection', (socket) => {
     console.log(`[Socket.io] Device connected: ${socket.id}`);
+
+    socket.on('disconnect', () => {
+        onlineUsers.delete(socket.id);
+        console.log(`[Socket.io] Device disconnected: ${socket.id}`);
+    });
+
+    socket.on('register_online', (data) => {
+        if (data.userId) {
+            onlineUsers.set(socket.id, data.userId.toString());
+            console.log(`[Socket.io] User ${data.userId} marked as online`);
+        }
+    });
 
     socket.on('admin_trigger_simulation', async (data) => {
         console.log('[Socket.io] Admin triggered simulation:', data);

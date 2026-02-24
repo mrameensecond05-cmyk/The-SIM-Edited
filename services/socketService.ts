@@ -32,3 +32,8 @@ export const emitSimulation = () => {
         timestamp: new Date().toISOString()
     });
 };
+
+/** Register user as online */
+export const registerOnline = (userId: string) => {
+    socket.emit('register_online', { userId });
+};
